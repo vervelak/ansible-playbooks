@@ -1,0 +1,58 @@
+---
+
+- name: install GoLang
+  hosts: default
+  become: true
+  tasks:
+    - name: Upgrade all packages
+      yum:
+        name: '*'
+        state: latest
+    - name: Install packages
+      yum:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - golang
+
+- name: disable systemd-resolved
+  hosts: default
+  become: true
+  tasks:
+    - name: stop systemd-resolved
+      ansible.builtin.systemd:
+        name: systemd-resolved
+        state: stopped
+        enabled: no
+        masked: yes
+
+- name: create interactsh group and user
+  hosts: default
+  become: true
+  tasks:
+    - name: create interactsh group
+      ansible.builtin.group:
+        name: interactsh
+        state: present
+    - name: create interactsh user
+      ansible.builtin.user:
+        name: interactsh
+        comment: interactsh service user
+        create_home: true
+        shell: /sbin/nologin
+        home: /opt/interactsh
+        system: true
+        group: interactsh
+
+- name: install interactsh
+  hosts: default
+  become: true
+  become_user: interactsh
+  tasks:
+    - name: install interactsh
+      ansible.builtin.shell:
+        cmd: go install -v github.com/projectdiscovery/interactsh/cmd/interactsh-server@latest
+        executable: /bin/bash
+        creates: $HOME/go/bin/interactsh-server
+
+# - name: configure interactsh

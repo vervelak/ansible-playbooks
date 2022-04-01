@@ -1,0 +1,48 @@
+---
+    
+- name: OS Hardening - devsec
+  hosts: default 
+  become: yes
+  collections:
+    - devsec.hardening
+  roles:
+    - os_hardening
+    - ssh_hardening
+
+
+- name: Upgrade all packages
+  hosts: default
+  become: yes
+  tasks:
+  - name: Upgrade all packages
+    yum:
+      name: '*'
+      state: latest
+
+- name: Install Packages
+  hosts: default
+  become: yes
+  tasks:
+  - name: Install packages
+    yum:
+      name: "{{ packages }}"
+    vars:
+      packages:
+      - screen
+      - tmux
+      - rtorrent
+      - etckeeper
+      - git-core
+      
+- name: Copy screenrc
+  hosts: default
+  become: yes
+  tasks:
+  - name: Copy screenrc
+    copy:
+      src: ../files/screenrc
+      dest: /etc/screenrc
+      owner: root
+      group: root
+      mode: 0644
+      backup: yes
