@@ -1,0 +1,145 @@
+---
+
+- name: update and install packages
+  hosts: default
+  become: true
+  tasks:
+    - name: Upgrade all packages
+      apt:
+        name: '*'
+        state: latest
+    - name: Install packages
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - golang
+          - python3-pip
+          - python3-pil
+          - python3-numpy
+          - python3-rpi.gpio
+          - python3-spidev
+          - p7zip-full
+          - vim
+          - fish
+          - zsh
+          - openvpn
+          - openvpn-systemd-resolved
+          - iodine
+          - screen
+          - tmux
+          - rtorrent
+          - etckeeper
+          - git-core
+          - isc-dhcp-server
+          - iptables
+          - resolvconf
+    - name: Install wiringpi
+      apt:
+        deb: https://project-downloads.drogon.net/wiringpi-latest.deb
+
+- name: Update configurations
+  hosts: default
+  become: yes
+  tasks:
+  - name: Copy screenrc
+    copy:
+      src: ../files/screenrc
+      dest: /etc/screenrc
+      owner: root
+      group: root
+      mode: 0644
+      backup: yes
+  - name: Update /boot/config.txt
+    lineinfile:
+      path: /boot/config.txt
+      state: present
+      line: "dtoverlay=dwc2"
+  - name: Update /etc/dhcpcd.conf to exclude usb0
+    blockinfile:
+      path: /etc/dhcpcd.conf
+      state: present
+      block: |
+        interface usb0
+        static ip_address=192.168.7.1/24
+        static domain_name_servers=1.1.1.1 8.8.8.8
+  - name: Update /boot/cmdline.txt
+    replace:
+      path: /boot/cmdline.txt
+      # after: 'rootwait'
+      regexp: 'rootwait\n'
+      replace: 'rootwait modules-load=dwc2,g_ether'
+  - name: Update /etc/sysctl.conf
+    replace:
+      path: /etc/sysctl.conf
+      # after: 'rootwait'
+      regexp: 'net.ipv4.ip_forward=0'
+      replace: 'net.ipv4.ip_forward=1'
+  - name: Copy usb0 network interface config
+    copy:
+      src: ../files/usb0
+      dest: /etc/network/interfaces.d/usb0
+      owner: root
+      group: root
+      mode: 0644
+      backup: yes
+  - name: Copy ProtonVPN OpenVPN config
+    copy:
+      src: ../files/uk.protonvpn.net.udp.ovpn
+      dest: /etc/openvpn/client/protonvpn.conf
+      owner: root
+      group: root
+      mode: 0644
+  - name: Copy ProtonVPN credential file
+    copy:
+      src: ../files/protonvpn_creds.txt
+      dest: /etc/openvpn/protonvpn_creds.txt
+      owner: root
+      group: root
+      mode: 0644
+  - name: create /etc/default/isc-dhcp-server
+    lineinfile:
+      path: /etc/default/isc-dhcp-server
+      state: present
+      line: 'INTERFACES="usb0"'
+      create: yes
+      backup: yes
+  - name: Copy dhcpd.conf
+    copy:
+      src: ../files/dhcpd.conf
+      dest: /etc/dhcp/dhcpd.conf
+      owner: root
+      group: root
+      mode: 0644
+      backup: yes
+  - name: Enable openvpn-client service
+    systemd:
+      name: openvpn-client@protonvpn
+      state: started
+      enabled: yes
+  - name: Copy iptables-nat.sh
+    copy:
+      src: ../files/iptables-nat.sh
+      dest: /usr/local/bin/iptables-nat.sh
+      owner: root
+      group: root
+      mode: 0755
+      backup: no
+  - name: Update /lib/systemd/system/openvpn-client@.service
+    blockinfile:
+      path: '/lib/systemd/system/openvpn-client@.service'
+      state: present
+      insertafter: 'KillMode=process'
+      block: |
+        Restart=always
+        RestartSec=10
+        ExecStartPost=/usr/local/bin/iptables-nat.sh
+
+- name: Change shell to fish
+  hosts: default
+  become: yes
+  tasks:
+  - name: Change shell to fish
+    user:
+      name: 'vervelak'
+      shell: /usr/bin/fish
